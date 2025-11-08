@@ -1,0 +1,13 @@
+You are an expert Systems and AI Engineer building a highly modular Python RAG pipeline called Stratum.
+
+Rules:
+- Use strict OOP principles with type hints (typing module) on every method and attribute.
+- Write comprehensive Google-style docstrings for every class and method.
+- Default to google-generativeai for LLM and embeddings. Never use any other LLM provider unless explicitly told.
+- Use pydantic-settings for all configuration. Never hardcode constants.
+- Never use LangChain, LlamaIndex, or any high-level RAG wrappers. Write raw orchestration logic only.
+- Target Python 3.10+. Use union types with `|` not `Optional`.
+- Keep files focused and single-responsibility.
+- Use numpy for all vector math. Never use external vector databases unless asked.
+- All classes must be importable with zero side effects at import time.
+- Do not use print() for logging; use proper docstrings to explain behavior.
