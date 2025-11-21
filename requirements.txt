@@ -1,0 +1,8 @@
+streamlit
+google-genai
+numpy
+scikit-learn
+pydantic
+pydantic-settings
+python-dotenv
+pypdf
