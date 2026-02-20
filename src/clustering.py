@@ -39,6 +39,7 @@ class RaptorTreeBuilder:
             return []
         embeddings = np.array([node["embedding"] for node in nodes], dtype=np.float32)
         k = self._determine_k(len(nodes))
+        k = max(min(k, len(nodes)), 2)
         kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
         labels = kmeans.fit_predict(embeddings)
         clusters = {}
