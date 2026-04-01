@@ -1,8 +1,12 @@
 import uuid
 from typing import Any
 import numpy as np
+from google import genai
+from google.genai import types
 from config.settings import settings
 from src.clustering import RaptorTreeBuilder
+
+_client = genai.Client(api_key=settings.GEMINI_API_KEY)
 
 class StratumPipeline:
     def __init__(self) -> None:
@@ -45,6 +49,21 @@ class StratumPipeline:
         self.node_embeddings = np.array([n["embedding"] for n in self.all_nodes], dtype=np.float32)
         self.is_ingested = True
         return {"total_nodes": len(self.all_nodes)}
+
+    def _retrieve_top_k(self, query: str, k: int = 4) -> list[dict[str, Any]]:
+        result = _client.models.embed_content(
+            model=settings.EMBEDDING_MODEL,
+            contents=query,
+            config=types.EmbedContentConfig(task_type="RETRIEVAL_QUERY"),
+        )
+        query_vec = np.array(result.embeddings[0].values, dtype=np.float32)
+        node_norms = np.linalg.norm(self.node_embeddings, axis=1)
+        query_norm = np.linalg.norm(query_vec)
+        denom = node_norms * query_norm
+        denom = np.where(denom == 0.0, 1e-10, denom)
+        similarities = np.dot(self.node_embeddings, query_vec) / denom
+        top_k_indices = np.argsort(similarities)[::-1][:k]
+        return [self.all_nodes[i] for i in top_k_indices]
 
     def execute_query(self, question: str) -> str:
         return ""
