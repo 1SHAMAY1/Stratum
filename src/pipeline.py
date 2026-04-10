@@ -66,4 +66,8 @@ class StratumPipeline:
         return [self.all_nodes[i] for i in top_k_indices]
 
     def execute_query(self, question: str) -> str:
-        return ""
+        top_nodes = self._retrieve_top_k(question, k=4)
+        context = "\n\n".join(n["text"] for n in top_nodes)
+        prompt = f"Answer question based on context:\nContext:\n{context}\n\nQuestion: {question}"
+        response = _client.models.generate_content(model=settings.LLM_MODEL, contents=prompt)
+        return response.text.strip()
