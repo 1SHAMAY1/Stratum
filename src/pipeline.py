@@ -61,6 +61,9 @@ class StratumPipeline:
         query_norm = np.linalg.norm(query_vec)
         denom = node_norms * query_norm
         denom = np.where(denom == 0.0, 1e-10, denom)
+        # ensure garbage collection of large intermediate variables
+        import gc
+        gc.collect()
         similarities = np.dot(self.node_embeddings, query_vec) / denom
         top_k_indices = np.argsort(similarities)[::-1][:k]
         return [self.all_nodes[i] for i in top_k_indices]
