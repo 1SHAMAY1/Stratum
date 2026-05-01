@@ -1,4 +1,5 @@
 import streamlit as st
+from src.pipeline import StratumPipeline
 
 st.set_page_config(
     page_title="Stratum · Document Intelligence",
@@ -6,5 +7,13 @@ st.set_page_config(
     layout="wide",
 )
 
+if "pipeline" not in st.session_state:
+    st.session_state.pipeline = StratumPipeline()
+
 st.title("🪨 Stratum")
-st.write("Welcome to Stratum. Ingest your documents to get started.")
+
+with st.sidebar:
+    st.header("Upload Documents")
+    uploaded_files = st.file_uploader("Choose files", accept_multiple_files=True)
+    if st.button("Build Knowledge Tree"):
+        st.write("Ingesting...")
