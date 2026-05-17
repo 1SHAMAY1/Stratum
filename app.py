@@ -320,8 +320,7 @@ with bar_mid:
 
 with bar_right:
     # ── ⋮ Three-dot popover menu ──────────────────────────────────────────
-    # older layout sidebar
-    with st.sidebar:
+    with st.popover("⋮", use_container_width=False):
         st.markdown("#### 📂 Load Documents")
         tab_up, tab_folder, tab_paste = st.tabs(["Upload Files", "Folder Path", "Paste Text"])
 
