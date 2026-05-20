@@ -23,7 +23,7 @@ class AppSettings(BaseSettings):
     All fields with defaults can be overridden via environment variables.
 
     Attributes:
-        GEMINI_API_KEY: Google Gemini API key (required, no default).
+        GEMINI_API_KEY: Google Gemini API key (optional, defaults to None to avoid import crashes).
         EMBEDDING_MODEL: Gemini model used for generating text embeddings.
         LLM_MODEL: Gemini model used for generating natural language answers.
         MAX_CLUSTERS: Upper bound on K-Means clusters per RAPTOR tree layer.
@@ -40,8 +40,9 @@ class AppSettings(BaseSettings):
     )
 
     # ── API ────────────────────────────────────────────────────────────────
-    GEMINI_API_KEY: str = Field(
-        ...,
+    # Defaulting to None allows the app to import and load cleanly, raising a friendly UI warning instead of crashing on boot.
+    GEMINI_API_KEY: str | None = Field(
+        default=None,
         description="Google Gemini API key. Get one free at https://aistudio.google.com",
     )
 

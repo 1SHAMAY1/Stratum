@@ -9,17 +9,17 @@ Run with:
 """
 
 import io
+import logging
 import os
+import sys
 from pathlib import Path
 
 import streamlit as st
 from pypdf import PdfReader
 import fitz  # PyMuPDF for ultra-fast C-based text extraction
 
-from src.pipeline import StratumPipeline
-
 # ──────────────────────────────────────────────────────────────────────────────
-# Page Configuration
+# Page Configuration (Must run BEFORE importing anything that instantiates elements)
 # ──────────────────────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="Stratum · Document Intelligence",
@@ -29,12 +29,59 @@ st.set_page_config(
 )
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Safe Console Logging Configuration (Root level)
+# ──────────────────────────────────────────────────────────────────────────────
+logger = logging.getLogger("stratum")
+if not logger.handlers:
+    logger.setLevel(logging.INFO)
+    handler = logging.StreamHandler(sys.stdout)
+    formatter = logging.Formatter(
+        fmt="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S"
+    )
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    logger.propagate = False
+
+logger.info("Stratum Streamlit Engine Initializing...")
+
+# ──────────────────────────────────────────────────────────────────────────────
+# API Key Verification Guardrail
+# ──────────────────────────────────────────────────────────────────────────────
+from config.settings import settings
+
+if not settings.GEMINI_API_KEY:
+    logger.warning("Application launch blocked: GEMINI_API_KEY environment variable is not defined.")
+    st.markdown("""
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght=300;400;500;600;700&display=swap');
+    html, body, [class*="css"] {
+        font-family: 'Inter', sans-serif !important;
+        background-color: #0d0f14 !important;
+        color: #e8eaf0 !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    st.error(
+        "🔑 **GEMINI_API_KEY is missing!**\n\n"
+        "To start using Stratum, please create a `.env` file in the project's root folder and add your key:\n"
+        "```env\n"
+        "GEMINI_API_KEY=your_actual_api_key_here\n"
+        "```\n"
+        "Alternatively, set the variable in your system environment and restart Streamlit."
+    )
+    st.info("💡 You can register for a free API credential at [Google AI Studio](https://aistudio.google.com).")
+    st.stop()
+
+# Import pipeline elements ONLY after ensuring the environment settings are valid
+from src.pipeline import StratumPipeline
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Custom CSS
 # ──────────────────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-
 :root {
     --bg-primary:   #0d0f14;
     --bg-card:      #1a1e2a;
@@ -233,20 +280,23 @@ SUPPORTED_EXT = {".pdf", ".txt", ".md", ".py", ".js", ".ts", ".html", ".css", ".
 
 
 def read_pdf(data: bytes) -> str:
+    """Read a raw PDF bytestream using fast fitz engine with a backup fallback reader."""
     try:
         # Use PyMuPDF (fitz) for C-based 100x faster text extraction
         doc = fitz.open(stream=data, filetype="pdf")
         return "\n\n".join(page.get_text() or "" for page in doc)
     except Exception as e:
-        # Fallback to pure-Python PdfReader
+        logger.warning("Fast PyMuPDF extraction failed. Attempting pure-Python backup... Error: %s", e)
         try:
             reader = PdfReader(io.BytesIO(data))
             return "\n\n".join(p.extract_text() or "" for p in reader.pages)
-        except Exception:
-            raise e
+        except Exception as fallback_error:
+            logger.error("All PDF readers failed. Payload cannot be processed.")
+            raise fallback_error
 
 
 def load_uploaded_files(files) -> tuple[str, list[str]]:
+    """Convert uploaded Streamlit UI files into a combined text payload."""
     parts, names = [], []
     for f in files:
         ext = Path(f.name).suffix.lower()
@@ -256,13 +306,16 @@ def load_uploaded_files(files) -> tuple[str, list[str]]:
                 parts.append(f"=== {f.name} ===\n{text}")
                 names.append(f.name)
         except Exception as e:
+            logger.error("Skipped loading file %s due to error: %s", f.name, e)
             st.toast(f"Skipped {f.name}: {e}", icon="⚠️")
     return "\n\n".join(parts), names
 
 
 def load_folder(path_str: str) -> tuple[str, list[str], list[str]]:
+    """Scan a folder directory recursively and construct text slices."""
     folder = Path(path_str.strip())
     if not folder.exists() or not folder.is_dir():
+        logger.warning("Provided path does not exist or is not a folder: %s", path_str)
         return "", [], []
     parts, loaded, skipped = [], [], []
     for fp in sorted(folder.rglob("*")):
@@ -278,6 +331,7 @@ def load_folder(path_str: str) -> tuple[str, list[str], list[str]]:
                 loaded.append(str(fp.relative_to(folder)))
         except Exception as e:
             skipped.append(f"{fp.name} ({e})")
+            logger.warning("Error reading file inside directory %s: %s", fp.name, e)
     return "\n\n".join(parts), loaded, skipped
 
 
@@ -306,8 +360,6 @@ st.markdown("""
 # ──────────────────────────────────────────────────────────────────────────────
 # Top action bar — model badge + ⋮ menu
 # ──────────────────────────────────────────────────────────────────────────────
-from config.settings import settings
-
 bar_left, bar_mid, bar_right = st.columns([6, 1, 1])
 
 with bar_left:
@@ -397,6 +449,7 @@ with bar_right:
         # Ingest button
         if st.button("⚡ Build Knowledge Tree", key="ingest_btn", type="primary"):
             if raw_text.strip():
+                logger.info("Streamlit UI: User triggered 'Build Knowledge Tree' on files %s", file_names)
                 with st.spinner("Building RAPTOR layers…"):
                     try:
                         stats = st.session_state.pipeline.ingest_raw_documents(raw_text)
@@ -406,6 +459,7 @@ with bar_right:
                         st.success(f"Done! {stats['total_nodes']} nodes built.")
                         st.rerun()
                     except Exception as e:
+                        logger.error("Knowledge tree generation failed: %s", e)
                         st.error(f"Failed: {e}")
             else:
                 st.warning("No content selected yet.")
@@ -435,6 +489,7 @@ if prompt := st.chat_input("Ask anything about your documents…"):
     if not st.session_state.pipeline.is_ingested:
         st.warning("Click ⋮ to load documents first.")
     else:
+        logger.info("Streamlit UI: User sent query: '%s'", prompt)
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user", avatar="🧑"):
             st.markdown(prompt)
@@ -446,5 +501,6 @@ if prompt := st.chat_input("Ask anything about your documents…"):
                     st.session_state.messages.append({"role": "assistant", "content": answer})
                 except Exception as e:
                     err = f"Query failed: {e}"
+                    logger.error("RAG pipeline answer execution failed: %s", e)
                     st.error(err)
                     st.session_state.messages.append({"role": "assistant", "content": err})
