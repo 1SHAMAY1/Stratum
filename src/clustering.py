@@ -66,10 +66,15 @@ class RaptorTreeBuilder:
         if not texts:
             return np.empty((0, 3072), dtype=np.float32)
 
-        batch_size = 100
+        batch_size = 15
         embeddings: list[list[float]] = []
 
-        for i in range(0, len(texts), batch_size):
+        for idx, i in enumerate(range(0, len(texts), batch_size)):
+            if idx > 0:
+                # Respect the 30K Tokens Per Minute (TPM) limit.
+                # 15 chunks * 1500 chars = ~5.6K tokens. Sleeping 12s keeps us under 28K TPM.
+                time.sleep(12.0)
+
             batch_texts = texts[i : i + batch_size]
             content_list = [
                 types.Content(parts=[types.Part.from_text(text=txt)])
@@ -88,7 +93,6 @@ class RaptorTreeBuilder:
                         config=types.EmbedContentConfig(task_type="RETRIEVAL_DOCUMENT"),
                     )
                     batch_embeddings = [emb.values for emb in result.embeddings]
-                    time.sleep(0.5)
                     break
                 except APIError as e:
                     if e.code in (429, 503) and attempt < max_retries - 1:
