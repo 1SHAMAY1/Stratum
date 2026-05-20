@@ -68,7 +68,7 @@ No LangChain. No LlamaIndex. Raw orchestration.
 ### 1. Clone & Install
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/1SHAMAY1/Stratum
 cd stratum
 pip install -r requirements.txt
 ```
