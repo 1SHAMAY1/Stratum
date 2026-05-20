@@ -14,6 +14,7 @@ from pathlib import Path
 
 import streamlit as st
 from pypdf import PdfReader
+import fitz  # PyMuPDF for ultra-fast C-based text extraction
 
 from src.pipeline import StratumPipeline
 
@@ -232,8 +233,17 @@ SUPPORTED_EXT = {".pdf", ".txt", ".md", ".py", ".js", ".ts", ".html", ".css", ".
 
 
 def read_pdf(data: bytes) -> str:
-    reader = PdfReader(io.BytesIO(data))
-    return "\n\n".join(p.extract_text() or "" for p in reader.pages)
+    try:
+        # Use PyMuPDF (fitz) for C-based 100x faster text extraction
+        doc = fitz.open(stream=data, filetype="pdf")
+        return "\n\n".join(page.get_text() or "" for page in doc)
+    except Exception as e:
+        # Fallback to pure-Python PdfReader
+        try:
+            reader = PdfReader(io.BytesIO(data))
+            return "\n\n".join(p.extract_text() or "" for p in reader.pages)
+        except Exception:
+            raise e
 
 
 def load_uploaded_files(files) -> tuple[str, list[str]]:
